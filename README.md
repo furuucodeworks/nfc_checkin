@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NFC チェックインシステム
 
-## Getting Started
+NFCタグを使用した全社統一チェックインシステム。
 
-First, run the development server:
+## ドキュメント
+
+- [要件定義](docs/requirements.md)
+- [実装計画](docs/implementation-plan.md)
+
+## 技術スタック
+
+- Next.js (App Router)
+- Supabase (PostgreSQL / Auth)
+- Vercel
+
+## セットアップ
+
+### 1. 依存関係のインストール
+
+```bash
+npm install
+```
+
+### 2. 環境変数
+
+`env.example` をコピーして `.env.local` を作成し、Supabase の値を設定する。
+
+```bash
+cp env.example .env.local
+```
+
+Supabase プロジェクトは [Supabase Dashboard](https://supabase.com/dashboard) で作成する。リージョンは **Northeast Asia (Tokyo)** を選択する（要件定義 §6）。
+
+### 3. 開発サーバー起動
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- ホーム: http://localhost:3000
+- チェックイン（埼玉）: http://localhost:3000/checkin/saitama
+- チェックイン（小布施）: http://localhost:3000/checkin/obuse
+- チェックイン（愛知）: http://localhost:3000/checkin/aichi
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## NFCタグ URL 形式
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+https://yourdomain.com/checkin/[location_id]
+```
 
-## Learn More
+| location_id | 施設 |
+|-------------|------|
+| `saitama` | 埼玉/熊谷 |
+| `obuse` | 小布施 |
+| `aichi` | 愛知 |
 
-To learn more about Next.js, take a look at the following resources:
+## Vercel へのデプロイ
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. [Vercel](https://vercel.com) で GitHub リポジトリをインポート
+2. 環境変数 `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定
+3. デプロイ後、`/checkin/saitama` などで動作確認
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## スクリプト
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev      # 開発サーバー
+npm run build    # 本番ビルド
+npm run start    # 本番サーバー
+npm run lint     # ESLint
+```
