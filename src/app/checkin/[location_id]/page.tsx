@@ -1,4 +1,6 @@
+import { LogoutButton } from "@/app/logout-button";
 import { LOCATIONS, isValidLocationId } from "@/lib/locations";
+import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 
 type PageProps = {
@@ -13,6 +15,9 @@ export default async function CheckinPage({ params }: PageProps) {
   }
 
   const facilityName = LOCATIONS[location_id];
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const email = data?.claims?.email as string | undefined;
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center bg-zinc-50 px-6">
@@ -20,6 +25,14 @@ export default async function CheckinPage({ params }: PageProps) {
         <h1 className="text-3xl font-semibold text-zinc-900">Hello</h1>
         <p className="mt-4 text-zinc-600">{facilityName}</p>
         <p className="mt-1 text-sm text-zinc-400">location_id: {location_id}</p>
+        {email && (
+          <p className="mt-6 text-sm text-zinc-600">
+            ログイン中: <span className="font-medium">{email}</span>
+          </p>
+        )}
+        <div className="mt-4">
+          <LogoutButton />
+        </div>
       </main>
     </div>
   );

@@ -11,7 +11,7 @@ export default function Home() {
           <h1 className="text-2xl font-semibold text-zinc-900">
             NFC チェックインシステム
           </h1>
-          <p className="mt-2 text-sm text-zinc-500">STEP 1: 環境構築と画面表示</p>
+          <p className="mt-2 text-sm text-zinc-500">STEP 2: ログイン機能</p>
         </div>
 
         <ul className="space-y-2">
