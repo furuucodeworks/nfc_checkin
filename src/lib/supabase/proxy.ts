@@ -1,11 +1,7 @@
+import { isSafeReturnUrl } from "@/lib/auth/return-url";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_COOKIE_OPTIONS } from "./cookie-options";
-
-//pathが/checkin/が含まれているか//(危険なURL)で始まっていないか判定している
-function isSafeReturnUrl(path: string): boolean {
-  return path.startsWith("/checkin/") && !path.startsWith("//");
-}
 
 export async function updateSession(request: NextRequest) {
   //特別なことがなければリクエストをそのまま進める
@@ -30,7 +26,10 @@ export async function updateSession(request: NextRequest) {
           //新しい箱を作成してプラウザへレスポンスするための状態へsetしておく
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              ...AUTH_COOKIE_OPTIONS,
+            }),
           );
           //引数で渡されたheadersをブラウザへ渡すためのセットしている状態
           Object.entries(headers).forEach(([key, value]) =>

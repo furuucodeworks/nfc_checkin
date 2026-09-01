@@ -1,6 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { AUTH_COOKIE_OPTIONS } from "./cookie-options";
 
+/** 認証 Cookie は httpOnly のため、ログイン・ログアウトには使わない。 */
 export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

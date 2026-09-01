@@ -61,7 +61,8 @@
 - ログイン済みで `/login` → `/` または安全な `returnUrl` へ: OK
 - Cookie が長期間有効（DevTools で約400日相当の Expires を確認。`@supabase/ssr` がブラウザ書き込み時に maxAge を上書き）: OK
 - ログアウト後、再度 `/checkin/*` でログイン画面へ: OK
-- 既知のトレードオフ: ブラウザの `signInWithPassword` 方式のため `httpOnly: false`（`true` だとログイン後に `/login` へ戻ることを確認済み）。要件の HttpOnly はサーバー側ログインへ切り替えるときに対応予定
+- 既知のトレードオフ: ブラウザの `signInWithPassword` 方式のため当初 `httpOnly: false`（`true` だとログイン後に `/login` へ戻ることを確認済み）
+- 2026-09-01: ログイン・ログアウトを Server Action に切り替え、`httpOnly: true` に戻した（要件 §6）
 
 ---
 

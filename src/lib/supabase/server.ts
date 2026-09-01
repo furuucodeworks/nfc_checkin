@@ -17,7 +17,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              cookieStore.set(name, value, { ...options, ...AUTH_COOKIE_OPTIONS }),
             );
           } catch {
             // Server Component からの呼び出し時は set ができない

@@ -2,7 +2,7 @@
 
 NFC チェックインシステム（`nfc_checkin`）のファイル・フォルダ構成と役割の一覧。
 
-最終更新: 2026-08-10
+最終更新: 2026-09-01
 
 > **メンテナンス**: このファイルはプロジェクト構成の正本。`src/` の追加・削除・移動やルーティング変更があった作業では、AI エージェントが同じ作業内で内容を更新する（`AGENTS.md` 参照）。
 
@@ -48,7 +48,7 @@ nfc_checkin/
     │   ├── page.tsx                   # ホーム（/）
     │   ├── globals.css                # グローバル CSS（Tailwind）
     │   ├── favicon.ico                # ファビコン
-    │   ├── logout-button.tsx          # ログアウトボタン（Client Component）
+    │   ├── logout-button.tsx          # ログアウトボタン（Server Action を呼ぶ form）
     │   │
     │   ├── login/                     # ログイン画面
     │   │   ├── page.tsx               # /login
@@ -60,8 +60,11 @@ nfc_checkin/
     │
     └── lib/                           # 共通ロジック
         ├── locations.ts               # 施設マスタ・バリデーション
+        ├── auth/                      # 認証（ログイン・ログアウト・returnUrl）
+        │   ├── actions.ts             # ログイン / ログアウトの Server Action
+        │   └── return-url.ts          # ログイン後 URL の安全チェック
         └── supabase/                  # Supabase 接続
-            ├── client.ts              # ブラウザ用クライアント
+            ├── client.ts              # ブラウザ用クライアント（認証には使わない）
             ├── server.ts              # サーバー用クライアント
             ├── cookie-options.ts      # 認証 Cookie 設定
             └── proxy.ts               # セッション更新・認証ガード
@@ -105,9 +108,9 @@ Next.js の App Router 規約に従い、フォルダ構造が URL に対応す�
 | `layout.tsx` | Server | 全ページ共通の HTML 構造・フォント・メタデータ |
 | `page.tsx` | Server | ホーム画面。`LOCATIONS` から施設リンクを生成 |
 | `globals.css` | — | Tailwind 読み込みと基本スタイル |
-| `logout-button.tsx` | Client | Supabase `signOut` 後に `/` へ遷移 |
+| `logout-button.tsx` | Server | `logout` Server Action を submit し `/` へリダイレクト |
 | `login/page.tsx` | Server | ログイン画面。`returnUrl` クエリを安全に検証 |
-| `login/login-form.tsx` | Client | メール/パスワードで `signInWithPassword`。成功後は `router.push` + `router.refresh` |
+| `login/login-form.tsx` | Client | フォームを `login` Server Action に送信。エラー表示と送信中状態 |
 | `checkin/[location_id]/page.tsx` | Server | 施設名表示・ログインユーザー email 表示 |
 
 `[location_id]` は動的セグメント。URL の `saitama` などが `params.location_id` として渡る。
@@ -117,9 +120,11 @@ Next.js の App Router 規約に従い、フォルダ構造が URL に対応す�
 | ファイル | 役割 |
 |----------|------|
 | `locations.ts` | 施設 ID と名称の対応（`saitama` → 埼玉/熊谷 など）。`isValidLocationId()` でバリデーション |
-| `supabase/client.ts` | ブラウザ（Client Component）から Supabase Auth に接続 |
+| `auth/actions.ts` | サーバー側で `signInWithPassword` / `signOut`。成功時は Cookie を書いてリダイレクト |
+| `auth/return-url.ts` | `returnUrl` が `/checkin/` 配下か検証し、不正なら `/` |
+| `supabase/client.ts` | ブラウザ用クライアント。認証 Cookie は httpOnly のためログイン・ログアウトには使わない |
 | `supabase/server.ts` | Server Component / Server Action から Supabase に接続 |
-| `supabase/cookie-options.ts` | 認証 Cookie（365 日・`sameSite`）。現状 `httpOnly: false`（ブラウザログインのため） |
+| `supabase/cookie-options.ts` | 認証 Cookie（365 日・HttpOnly・SameSite=Lax。本番は Secure） |
 | `supabase/proxy.ts` | セッション更新、未認証時の `/login` リダイレクト、ログイン済み時の `/login` 回避 |
 
 ### `src/proxy.ts` — リクエスト前処理
@@ -157,15 +162,16 @@ sequenceDiagram
     participant Browser
     participant Proxy as src/proxy.ts
     participant UpdateSession as lib/supabase/proxy.ts
-    participant Login as login/login-form.tsx
+    participant LoginAction as lib/auth/actions.ts
     participant Checkin as checkin/[location_id]/page.tsx
 
     Browser->>Proxy: GET /checkin/saitama
     Proxy->>UpdateSession: updateSession()
     UpdateSession-->>Browser: 未認証 → /login?returnUrl=/checkin/saitama
 
-    Browser->>Login: POST（signInWithPassword）
-    Login->>Browser: Cookie 設定 → returnUrl へ遷移
+    Browser->>LoginAction: POST（Server Action: login）
+    LoginAction->>LoginAction: signInWithPassword → Set-Cookie（HttpOnly）
+    LoginAction-->>Browser: redirect(returnUrl)
 
     Browser->>Proxy: GET /checkin/saitama（Cookie 付き）
     Proxy->>UpdateSession: updateSession()
@@ -203,7 +209,7 @@ sequenceDiagram
 |--------------|----------|
 | 画面の見た目・表示内容を変える | `src/app/` 配下 |
 | 施設を追加・変更する | `src/lib/locations.ts` |
-| 認証・リダイレクトの挙動を変える | `src/lib/supabase/proxy.ts`, `src/proxy.ts` |
+| 認証・リダイレクトの挙動を変える | `src/lib/auth/actions.ts`, `src/lib/supabase/proxy.ts`, `src/proxy.ts` |
 | Supabase 接続設定を変える | `src/lib/supabase/` |
 | 仕様を確認する | `docs/requirements.md` |
 | 実装の順番・進捗を確認する | `docs/implementation-plan.md` |
