@@ -4,6 +4,7 @@ type PageProps = {
   searchParams: Promise<{ returnUrl?: string }>;
 };
 
+//安全チェック
 function resolveReturnUrl(returnUrl: string | undefined): string {
   if (!returnUrl?.startsWith("/checkin/")) {
     return "/";
@@ -11,6 +12,7 @@ function resolveReturnUrl(returnUrl: string | undefined): string {
   return returnUrl;
 }
 
+//取得したクエリからURLを取り出し安全チェックをしている
 export default async function LoginPage({ searchParams }: PageProps) {
   const { returnUrl } = await searchParams;
   const safeReturnUrl = resolveReturnUrl(returnUrl);

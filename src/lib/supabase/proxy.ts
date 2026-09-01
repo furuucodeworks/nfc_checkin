@@ -50,13 +50,15 @@ export async function updateSession(request: NextRequest) {
   const isCheckinRoute = pathname.startsWith("/checkin/");
   const isLoginRoute = pathname === "/login";
 
+  //urlのクローンを作成後ログイン画面に飛ぶurlに書き換えて渡している。この時クエリにreturnUrl先を登録しておく。
   if (isCheckinRoute && !isAuthenticated) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("returnUrl", pathname);
+    //
     return NextResponse.redirect(url);
   }
-
+  //ログイン済みで/loginにいるとき、returnUrlが安全ならそこへ、ダメなら/へ。クエリは消してリダイレクト
   if (isLoginRoute && isAuthenticated) {
     const returnUrl = request.nextUrl.searchParams.get("returnUrl");
     const url = request.nextUrl.clone();
@@ -65,5 +67,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  //上の2つのifに入らなければ、リダイレクトせずそのまま通す
   return supabaseResponse;
 }

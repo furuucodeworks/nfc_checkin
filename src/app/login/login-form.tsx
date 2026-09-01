@@ -16,24 +16,57 @@ export function LoginForm({ returnUrl }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    // デフォルトイベント（ここではonSubmit)を止める)
     event.preventDefault();
     setError(null);
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // Supabase クライアントを作り、メールとパスワードでログインを依頼。結果の error を signInError に受け取る
+      const supabase = createClient();
+      const signInPromise = supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (signInError) {
-      setError("メールアドレスまたはパスワードが正しくありません");
+      // 応答がないまま固まるケースを切り分ける
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        window.setTimeout(() => {
+          reject(new Error("TIMEOUT"));
+        }, 15000);
+      });
+
+      const { error: signInError } = await Promise.race([
+        signInPromise,
+        timeoutPromise,
+      ]);
+
+      //エラーが存在した場合setErrorとsetLoadingに指定している内容をセットする
+      if (signInError) {
+        setError(`ログインに失敗しました（${signInError.message}）`);
+        return;
+      }
+
+      //ログイン成功後、returnUrl（元々行きたかったページ）へ移動させる命令
+      router.push(returnUrl);
+      //サーバー側の表示を最新のcookieを使って更新する
+      router.refresh();
+    } catch (error) {
+      if (error instanceof Error && error.message === "TIMEOUT") {
+        setError(
+          "ログイン応答がありません（15秒タイムアウト）。開発者ツールの Network で token リクエストを確認してください。",
+        );
+        return;
+      }
+
+      setError(
+        error instanceof Error
+          ? `ログイン処理でエラーが発生しました（${error.message}）`
+          : "ログイン処理で不明なエラーが発生しました",
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.push(returnUrl);
-    router.refresh();
   }
 
   return (

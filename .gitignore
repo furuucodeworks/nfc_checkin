@@ -36,6 +36,9 @@ yarn-error.log*
 # 作業記録（ローカルのみ）
 /docs/journal/
 
+# Obsidian のエディタ設定
+/docs/.obsidian/
+
 # vercel
 .vercel
 

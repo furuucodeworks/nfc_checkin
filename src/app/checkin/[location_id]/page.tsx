@@ -10,11 +10,13 @@ type PageProps = {
 export default async function CheckinPage({ params }: PageProps) {
   const { location_id } = await params;
 
+  //locaton_idが存在するのかを判定している。存在しない場合は404。
   if (!isValidLocationId(location_id)) {
     notFound();
   }
 
   const facilityName = LOCATIONS[location_id];
+  //emailをcookieデータ内から取得。
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const email = data?.claims?.email as string | undefined;
