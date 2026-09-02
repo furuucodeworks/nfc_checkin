@@ -111,7 +111,7 @@ Next.js の App Router 規約に従い、フォルダ構造が URL に対応す�
 | `logout-button.tsx` | Server | `logout` Server Action を submit し `/` へリダイレクト |
 | `login/page.tsx` | Server | ログイン画面。`returnUrl` クエリを安全に検証 |
 | `login/login-form.tsx` | Client | フォームを `login` Server Action に送信。エラー表示と送信中状態 |
-| `checkin/[location_id]/page.tsx` | Server | チェックイン完了画面。名前・登録写真・パスの種類・有効期限・共通化・残り日数（7日以内）を表示 |
+| `checkin/[location_id]/page.tsx` | Server | チェックイン完了画面。名前・写真・申し込み情報を表示し、`checkins` に成功記録を1行書く |
 
 `[location_id]` は動的セグメント。URL の `saitama` などが `params.location_id` として渡る。
 

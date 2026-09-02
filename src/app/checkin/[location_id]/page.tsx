@@ -70,12 +70,23 @@ export default async function CheckinPage({ params }: PageProps) {
     // 申し込み（パスの種類・有効期限・共通化）を読む
     const { data: application } = await supabase
       .from("applications")
-      .select("pass_type, expires_on, is_shared")
+      .select("id, pass_type, expires_on, is_shared")
       .eq("account_id", userId)
       .maybeSingle();
     passType = application?.pass_type ?? null;
     expiresOn = application?.expires_on ?? null;
     isShared = application?.is_shared ?? null;
+
+    // NFCをかざしてこの画面が開いたとき、チェックイン記録を1行書く
+    await supabase.from("checkins").insert({
+      account_id: userId,
+      application_id: application?.id ?? null,
+      checkin_date_jst: todayJst(),
+      location_id,
+      status: "成功",
+    });
+    // 同じ日の成功が既にあると unique_checkin_per_day で失敗する。
+    // 画面は出す。当日済みの判定画面は STEP 5。
   }
 
   // 残り日数を計算し、0〜7日のときだけ画面に出す
