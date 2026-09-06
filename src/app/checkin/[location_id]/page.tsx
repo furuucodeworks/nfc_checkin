@@ -31,6 +31,18 @@ function formatJaDate(isoDate: string): string {
   return `${year}年${Number(month)}月${Number(day)}日`;
 }
 
+function formatJaDateTime(isoDateTime: string): string {
+  // 本日のチェックイン日時の表示用（UTC → 日本時間）
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(isoDateTime));
+}
+
 export default async function CheckinPage({ params }: PageProps) {
   const { location_id } = await params;
 
@@ -51,6 +63,8 @@ export default async function CheckinPage({ params }: PageProps) {
   let passType: string | null = null;
   let expiresOn: string | null = null;
   let isShared: boolean | null = null;
+  let alreadyCheckedIn = false;
+  let checkedInAt: string | null = null;
   if (userId) {
     const { data: account } = await supabase
       .from("accounts")
@@ -77,16 +91,38 @@ export default async function CheckinPage({ params }: PageProps) {
     expiresOn = application?.expires_on ?? null;
     isShared = application?.is_shared ?? null;
 
-    // NFCをかざしてこの画面が開いたとき、チェックイン記録を1行書く
-    await supabase.from("checkins").insert({
-      account_id: userId,
-      application_id: application?.id ?? null,
-      checkin_date_jst: todayJst(),
-      location_id,
-      status: "成功",
-    });
-    // 同じ日の成功が既にあると unique_checkin_per_day で失敗する。
-    // 画面は出す。当日済みの判定画面は STEP 5。
+    const today = todayJst();
+
+    // 当日の成功記録があるか確認する（STEP 5-1）
+    const { data: existingSuccess } = await supabase
+      .from("checkins")
+      .select("checked_in_at")
+      .eq("account_id", userId)
+      .eq("checkin_date_jst", today)
+      .eq("status", "成功")
+      .maybeSingle();
+
+    if (existingSuccess) {
+      alreadyCheckedIn = true;
+      checkedInAt = existingSuccess.checked_in_at ?? null;
+      // 済みのタッチも記録する（成功の一意制約は対象外）
+      await supabase.from("checkins").insert({
+        account_id: userId,
+        application_id: application?.id ?? null,
+        checkin_date_jst: today,
+        location_id,
+        status: "チェックイン済み",
+      });
+    } else {
+      // NFCをかざしてこの画面が開いたとき、チェックイン記録を1行書く
+      await supabase.from("checkins").insert({
+        account_id: userId,
+        application_id: application?.id ?? null,
+        checkin_date_jst: today,
+        location_id,
+        status: "成功",
+      });
+    }
   }
 
   // 残り日数を計算し、0〜7日のときだけ画面に出す
@@ -99,7 +135,7 @@ export default async function CheckinPage({ params }: PageProps) {
     <div className="flex min-h-full flex-col items-center justify-center bg-zinc-50 px-6">
       <main className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
         <h1 className="text-3xl font-semibold text-zinc-900">
-          チェックイン完了
+          {alreadyCheckedIn ? "チェックイン済み" : "チェックイン完了"}
         </h1>
         {photoUrl ? (
           <img
@@ -113,27 +149,42 @@ export default async function CheckinPage({ params }: PageProps) {
         ) : (
           <p className="mt-4 text-sm text-zinc-400">名前を取得できませんでした</p>
         )}
-        {passType ? (
-          <p className="mt-4 text-zinc-700">パスの種類: {passType}</p>
+        {alreadyCheckedIn ? (
+          <>
+            {checkedInAt ? (
+              <p className="mt-4 text-zinc-700">
+                本日のチェックイン: {formatJaDateTime(checkedInAt)}
+              </p>
+            ) : null}
+            <p className="mt-4 text-zinc-600">
+              本日はすでにチェックイン済みです
+            </p>
+          </>
         ) : (
-          <p className="mt-4 text-sm text-zinc-400">
-            申し込み情報を取得できませんでした
-          </p>
+          <>
+            {passType ? (
+              <p className="mt-4 text-zinc-700">パスの種類: {passType}</p>
+            ) : (
+              <p className="mt-4 text-sm text-zinc-400">
+                申し込み情報を取得できませんでした
+              </p>
+            )}
+            {expiresOn ? (
+              <p className="mt-1 text-zinc-700">
+                有効期限: {formatJaDate(expiresOn)}
+              </p>
+            ) : null}
+            {isShared !== null ? (
+              <p className="mt-1 text-zinc-700">
+                共通化: {isShared ? "あり" : "なし"}
+              </p>
+            ) : null}
+            {showRemainingDays ? (
+              <p className="mt-1 text-sm text-amber-700">残り{remainingDays}日</p>
+            ) : null}
+            <p className="mt-4 text-zinc-600">チェックインが完了しました</p>
+          </>
         )}
-        {expiresOn ? (
-          <p className="mt-1 text-zinc-700">
-            有効期限: {formatJaDate(expiresOn)}
-          </p>
-        ) : null}
-        {isShared !== null ? (
-          <p className="mt-1 text-zinc-700">
-            共通化: {isShared ? "あり" : "なし"}
-          </p>
-        ) : null}
-        {showRemainingDays ? (
-          <p className="mt-1 text-sm text-amber-700">残り{remainingDays}日</p>
-        ) : null}
-        <p className="mt-4 text-zinc-600">チェックインが完了しました</p>
         <p className="mt-6 text-sm text-zinc-500">{facilityName}</p>
         <div className="mt-8">
           <LogoutButton />
