@@ -1,5 +1,10 @@
 import { LogoutButton } from "@/app/logout-button";
-import { LOCATIONS, isValidLocationId } from "@/lib/locations";
+import {
+  type CheckinFailureStatus,
+  checkinCopy,
+  resolveDisplayLanguage,
+} from "@/lib/checkin-copy";
+import { isValidLocationId } from "@/lib/locations";
 import { isOutsidePassHours } from "@/lib/pass-time";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
@@ -26,31 +31,6 @@ function remainingDaysFrom(expiresOn: string): number {
   return Math.round((expiry - today) / (1000 * 60 * 60 * 24));
 }
 
-function formatJaDate(isoDate: string): string {
-  // 有効期限の表示用。計算はしない（2026-09-09 → 2026年9月9日）
-  const [year, month, day] = isoDate.split("-");
-  return `${year}年${Number(month)}月${Number(day)}日`;
-}
-
-function formatJaDateTime(isoDateTime: string): string {
-  // 本日のチェックイン日時の表示用（UTC → 日本時間）
-  return new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(isoDateTime));
-}
-
-const ERROR_MESSAGES = {
-  未払い: "お支払いが確認できていません。受付へお越しください",
-  期限切れ: "ご利用期限が過ぎています。受付へお越しください",
-  施設不一致: "このパスはこの施設ではご利用いただけません。受付へお越しください",
-  時間外: "現在の時間帯はご利用いただけません。受付へお越しください",
-} as const;
-
 export default async function CheckinPage({ params }: PageProps) {
   const { location_id } = await params;
 
@@ -58,8 +38,6 @@ export default async function CheckinPage({ params }: PageProps) {
   if (!isValidLocationId(location_id)) {
     notFound();
   }
-
-  const facilityName = LOCATIONS[location_id];
 
   // Cookie の JWT からログイン中のユーザー ID を取り、accounts の名前と写真パスを読む
   const supabase = await createClient();
@@ -73,14 +51,16 @@ export default async function CheckinPage({ params }: PageProps) {
   let isShared: boolean | null = null;
   let alreadyCheckedIn = false;
   let checkedInAt: string | null = null;
-  let failureStatus: keyof typeof ERROR_MESSAGES | null = null;
+  let failureStatus: CheckinFailureStatus | null = null;
+  let displayLanguage = resolveDisplayLanguage(null);
   if (userId) {
     const { data: account } = await supabase
       .from("accounts")
-      .select("name, photo_path")
+      .select("name, photo_path, display_language")
       .eq("id", userId)
       .maybeSingle();
     accountName = account?.name ?? null;
+    displayLanguage = resolveDisplayLanguage(account?.display_language);
 
     // 写真は Storage にある。期限付きの署名 URL を作って画面に渡す
     if (account?.photo_path) {
@@ -180,72 +160,72 @@ export default async function CheckinPage({ params }: PageProps) {
     expiresOn !== null ? remainingDaysFrom(expiresOn) : null;
   const showRemainingDays =
     remainingDays !== null && remainingDays >= 0 && remainingDays <= 7;
+  const copy = checkinCopy(displayLanguage);
   const errorMessage =
-    failureStatus !== null ? ERROR_MESSAGES[failureStatus] : null;
+    failureStatus !== null ? copy.errors[failureStatus] : null;
+  const facilityName = copy.facility[location_id];
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center bg-zinc-50 px-6">
       <main className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
         <h1 className="text-3xl font-semibold text-zinc-900">
           {alreadyCheckedIn
-            ? "チェックイン済み"
+            ? copy.titleAlready
             : errorMessage
-              ? "チェックインできません"
-              : "チェックイン完了"}
+              ? copy.titleError
+              : copy.titleDone}
         </h1>
         {photoUrl ? (
           <img
             src={photoUrl}
-            alt={accountName ?? "登録写真"}
+            alt={accountName ?? copy.photoAlt}
             className="mx-auto mt-6 h-48 w-48 rounded-2xl object-cover"
           />
         ) : null}
         {accountName ? (
           <p className="mt-4 text-xl font-medium text-zinc-800">{accountName}</p>
         ) : (
-          <p className="mt-4 text-sm text-zinc-400">名前を取得できませんでした</p>
+          <p className="mt-4 text-sm text-zinc-400">{copy.nameMissing}</p>
         )}
         {alreadyCheckedIn ? (
           <>
             {checkedInAt ? (
               <p className="mt-4 text-zinc-700">
-                本日のチェックイン: {formatJaDateTime(checkedInAt)}
+                {copy.todayCheckin(checkedInAt)}
               </p>
             ) : null}
-            <p className="mt-4 text-zinc-600">
-              本日はすでにチェックイン済みです
-            </p>
+            <p className="mt-4 text-zinc-600">{copy.alreadyMessage}</p>
           </>
         ) : errorMessage ? (
           <p className="mt-4 text-zinc-600">{errorMessage}</p>
         ) : (
           <>
             {passType ? (
-              <p className="mt-4 text-zinc-700">パスの種類: {passType}</p>
+              <p className="mt-4 text-zinc-700">{copy.passTypeLabel(passType)}</p>
             ) : (
               <p className="mt-4 text-sm text-zinc-400">
-                申し込み情報を取得できませんでした
+                {copy.applicationMissing}
               </p>
             )}
             {expiresOn ? (
               <p className="mt-1 text-zinc-700">
-                有効期限: {formatJaDate(expiresOn)}
+                {copy.expiresOnLabel(expiresOn)}
               </p>
             ) : null}
             {isShared !== null ? (
-              <p className="mt-1 text-zinc-700">
-                共通化: {isShared ? "あり" : "なし"}
+              <p className="mt-1 text-zinc-700">{copy.sharedLabel(isShared)}</p>
+            ) : null}
+            {showRemainingDays && remainingDays !== null ? (
+              <p className="mt-1 text-sm text-amber-700">
+                {copy.remainingDays(remainingDays)}
               </p>
             ) : null}
-            {showRemainingDays ? (
-              <p className="mt-1 text-sm text-amber-700">残り{remainingDays}日</p>
-            ) : null}
-            <p className="mt-4 text-zinc-600">チェックインが完了しました</p>
+            <p className="mt-4 text-zinc-600">{copy.successMessage}</p>
           </>
         )}
         <p className="mt-6 text-sm text-zinc-500">{facilityName}</p>
         <div className="mt-8">
-          <LogoutButton />
+          <LogoutButton label={copy.logout} />
         </div>
       </main>
     </div>
