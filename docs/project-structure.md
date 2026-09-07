@@ -2,7 +2,7 @@
 
 NFC チェックインシステム（`nfc_checkin`）のファイル・フォルダ構成と役割の一覧。
 
-最終更新: 2026-09-02
+最終更新: 2026-09-06
 
 > **メンテナンス**: このファイルはプロジェクト構成の正本。`src/` の追加・削除・移動やルーティング変更があった作業では、AI エージェントが同じ作業内で内容を更新する（`AGENTS.md` 参照）。
 
@@ -111,7 +111,7 @@ Next.js の App Router 規約に従い、フォルダ構造が URL に対応す�
 | `logout-button.tsx` | Server | `logout` Server Action を submit し `/` へリダイレクト |
 | `login/page.tsx` | Server | ログイン画面。`returnUrl` クエリを安全に検証 |
 | `login/login-form.tsx` | Client | フォームを `login` Server Action に送信。エラー表示と送信中状態 |
-| `checkin/[location_id]/page.tsx` | Server | チェックイン画面。当日の成功があれば済み画面、なければ完了画面。`checkins` に記録する |
+| `checkin/[location_id]/page.tsx` | Server | チェックイン画面。当日の成功があれば済み画面（追加記録なし）、なければ完了画面と `成功` を1行書く |
 
 `[location_id]` は動的セグメント。URL の `saitama` などが `params.location_id` として渡る。
 

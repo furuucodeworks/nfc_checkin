@@ -105,14 +105,7 @@ export default async function CheckinPage({ params }: PageProps) {
     if (existingSuccess) {
       alreadyCheckedIn = true;
       checkedInAt = existingSuccess.checked_in_at ?? null;
-      // 済みのタッチも記録する（成功の一意制約は対象外）
-      await supabase.from("checkins").insert({
-        account_id: userId,
-        application_id: application?.id ?? null,
-        checkin_date_jst: today,
-        location_id,
-        status: "チェックイン済み",
-      });
+      // 済みの再タッチは記録しない。公式記録は当日の成功1件
     } else {
       // NFCをかざしてこの画面が開いたとき、チェックイン記録を1行書く
       await supabase.from("checkins").insert({
