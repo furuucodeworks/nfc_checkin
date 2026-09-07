@@ -60,6 +60,7 @@ nfc_checkin/
     │
     └── lib/                           # 共通ロジック
         ├── locations.ts               # 施設マスタ・バリデーション
+        ├── pass-time.ts               # パス種別の利用時間（平日・土日夜・祝日）
         ├── auth/                      # 認証（ログイン・ログアウト・returnUrl）
         │   ├── actions.ts             # ログイン / ログアウトの Server Action
         │   └── return-url.ts          # ログイン後 URL の安全チェック
@@ -111,7 +112,7 @@ Next.js の App Router 規約に従い、フォルダ構造が URL に対応す�
 | `logout-button.tsx` | Server | `logout` Server Action を submit し `/` へリダイレクト |
 | `login/page.tsx` | Server | ログイン画面。`returnUrl` クエリを安全に検証 |
 | `login/login-form.tsx` | Client | フォームを `login` Server Action に送信。エラー表示と送信中状態 |
-| `checkin/[location_id]/page.tsx` | Server | チェックイン画面。済み・未払い・期限切れを判定し、成功時だけ完了画面と `成功` を1行書く |
+| `checkin/[location_id]/page.tsx` | Server | チェックイン画面。済み・未払い・期限切れ・施設・時間帯を判定し、成功時だけ完了画面と `成功` を1行書く |
 
 `[location_id]` は動的セグメント。URL の `saitama` などが `params.location_id` として渡る。
 
@@ -120,6 +121,7 @@ Next.js の App Router 規約に従い、フォルダ構造が URL に対応す�
 | ファイル | 役割 |
 |----------|------|
 | `locations.ts` | 施設 ID と名称の対応（`saitama` → 埼玉/熊谷 など）。`isValidLocationId()` でバリデーション |
+| `pass-time.ts` | パス種別が今使える時間か。祝日は `@holiday-jp/holiday_jp` |
 | `auth/actions.ts` | サーバー側で `signInWithPassword` / `signOut`。成功時は Cookie を書いてリダイレクト |
 | `auth/return-url.ts` | `returnUrl` が `/checkin/` 配下か検証し、不正なら `/` |
 | `supabase/client.ts` | ブラウザ用クライアント。認証 Cookie は httpOnly のためログイン・ログアウトには使わない |
@@ -209,6 +211,7 @@ sequenceDiagram
 |--------------|----------|
 | 画面の見た目・表示内容を変える | `src/app/` 配下 |
 | 施設を追加・変更する | `src/lib/locations.ts` |
+| パス種別の利用時間を変える | `src/lib/pass-time.ts` |
 | 認証・リダイレクトの挙動を変える | `src/lib/auth/actions.ts`, `src/lib/supabase/proxy.ts`, `src/proxy.ts` |
 | Supabase 接続設定を変える | `src/lib/supabase/` |
 | 仕様を確認する | `docs/requirements.md` |

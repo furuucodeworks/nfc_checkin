@@ -1,5 +1,6 @@
 import { LogoutButton } from "@/app/logout-button";
 import { LOCATIONS, isValidLocationId } from "@/lib/locations";
+import { isOutsidePassHours } from "@/lib/pass-time";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 
@@ -47,6 +48,7 @@ const ERROR_MESSAGES = {
   未払い: "お支払いが確認できていません。受付へお越しください",
   期限切れ: "ご利用期限が過ぎています。受付へお越しください",
   施設不一致: "このパスはこの施設ではご利用いただけません。受付へお越しください",
+  時間外: "現在の時間帯はご利用いただけません。受付へお越しください",
 } as const;
 
 export default async function CheckinPage({ params }: PageProps) {
@@ -150,6 +152,16 @@ export default async function CheckinPage({ params }: PageProps) {
         checkin_date_jst: today,
         location_id,
         status: "施設不一致",
+      });
+    } else if (isOutsidePassHours(passType)) {
+      // STEP 5-5: フリーはいつでも可。平日は月〜金（祝日除く）。土日夜は土日祝終日＋平日19:30以降
+      failureStatus = "時間外";
+      await supabase.from("checkins").insert({
+        account_id: userId,
+        application_id: application?.id ?? null,
+        checkin_date_jst: today,
+        location_id,
+        status: "時間外",
       });
     } else {
       // NFCをかざしてこの画面が開いたとき、チェックイン記録を1行書く
