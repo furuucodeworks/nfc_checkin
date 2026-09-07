@@ -43,6 +43,12 @@ function formatJaDateTime(isoDateTime: string): string {
   }).format(new Date(isoDateTime));
 }
 
+const ERROR_MESSAGES = {
+  未払い: "お支払いが確認できていません。受付へお越しください",
+  期限切れ: "ご利用期限が過ぎています。受付へお越しください",
+  施設不一致: "このパスはこの施設ではご利用いただけません。受付へお越しください",
+} as const;
+
 export default async function CheckinPage({ params }: PageProps) {
   const { location_id } = await params;
 
@@ -65,6 +71,7 @@ export default async function CheckinPage({ params }: PageProps) {
   let isShared: boolean | null = null;
   let alreadyCheckedIn = false;
   let checkedInAt: string | null = null;
+  let failureStatus: keyof typeof ERROR_MESSAGES | null = null;
   if (userId) {
     const { data: account } = await supabase
       .from("accounts")
@@ -81,10 +88,10 @@ export default async function CheckinPage({ params }: PageProps) {
       photoUrl = signed?.signedUrl ?? null;
     }
 
-    // 申し込み（パスの種類・有効期限・共通化）を読む
+    // 申し込み（パスの種類・有効期限・共通化・支払い）を読む
     const { data: application } = await supabase
       .from("applications")
-      .select("id, pass_type, expires_on, is_shared")
+      .select("id, pass_type, expires_on, is_shared, payment_status, location_id")
       .eq("account_id", userId)
       .maybeSingle();
     passType = application?.pass_type ?? null;
@@ -93,19 +100,57 @@ export default async function CheckinPage({ params }: PageProps) {
 
     const today = todayJst();
 
-    // 当日の成功記録があるか確認する（STEP 5-1）
+    // 当日・この施設の成功記録があるか確認する（施設ごとに1回）
     const { data: existingSuccess } = await supabase
       .from("checkins")
       .select("checked_in_at")
       .eq("account_id", userId)
       .eq("checkin_date_jst", today)
+      .eq("location_id", location_id)
       .eq("status", "成功")
       .maybeSingle();
 
-    if (existingSuccess) {
+    const isFacilityMismatch = Boolean(
+      application &&
+        !application.is_shared &&
+        application.location_id !== location_id,
+    );
+
+    if (existingSuccess && !isFacilityMismatch) {
       alreadyCheckedIn = true;
       checkedInAt = existingSuccess.checked_in_at ?? null;
-      // 済みの再タッチは記録しない。公式記録は当日の成功1件
+      // 済みの再タッチは記録しない。公式記録は当日・施設ごとに成功1件
+    } else if (application?.payment_status === "未払い") {
+      // STEP 5-2: 未払いなら完了にせず、エラーを出して記録する
+      failureStatus = "未払い";
+      await supabase.from("checkins").insert({
+        account_id: userId,
+        application_id: application.id,
+        checkin_date_jst: today,
+        location_id,
+        status: "未払い",
+      });
+    } else if (expiresOn !== null && remainingDaysFrom(expiresOn) < 0) {
+      // STEP 5-3: 期限の当日はOK、翌日から不可
+      failureStatus = "期限切れ";
+      await supabase.from("checkins").insert({
+        account_id: userId,
+        application_id: application?.id ?? null,
+        checkin_date_jst: today,
+        location_id,
+        status: "期限切れ",
+      });
+    } else if (isFacilityMismatch) {
+      // STEP 5-4: 共通化なしで、申し込み施設とタグの施設が違う
+      // 当日成功が他施設にあっても、使えない施設では済みにしない
+      failureStatus = "施設不一致";
+      await supabase.from("checkins").insert({
+        account_id: userId,
+        application_id: application?.id ?? null,
+        checkin_date_jst: today,
+        location_id,
+        status: "施設不一致",
+      });
     } else {
       // NFCをかざしてこの画面が開いたとき、チェックイン記録を1行書く
       await supabase.from("checkins").insert({
@@ -123,12 +168,18 @@ export default async function CheckinPage({ params }: PageProps) {
     expiresOn !== null ? remainingDaysFrom(expiresOn) : null;
   const showRemainingDays =
     remainingDays !== null && remainingDays >= 0 && remainingDays <= 7;
+  const errorMessage =
+    failureStatus !== null ? ERROR_MESSAGES[failureStatus] : null;
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center bg-zinc-50 px-6">
       <main className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
         <h1 className="text-3xl font-semibold text-zinc-900">
-          {alreadyCheckedIn ? "チェックイン済み" : "チェックイン完了"}
+          {alreadyCheckedIn
+            ? "チェックイン済み"
+            : errorMessage
+              ? "チェックインできません"
+              : "チェックイン完了"}
         </h1>
         {photoUrl ? (
           <img
@@ -153,6 +204,8 @@ export default async function CheckinPage({ params }: PageProps) {
               本日はすでにチェックイン済みです
             </p>
           </>
+        ) : errorMessage ? (
+          <p className="mt-4 text-zinc-600">{errorMessage}</p>
         ) : (
           <>
             {passType ? (
